@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Token Refresh Demo</title>
+  <style>
+    /* Reset and font */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+      color: white;
+    }
+
+    .container {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.2);
+      text-align: center;
+      width: 350px;
+      backdrop-filter: blur(10px);
+      animation: fadeIn 0.8s ease-in-out;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      margin-bottom: 20px;
+    }
+
+    button {
+      background: #ffffff;
+      color: #2575fc;
+      border: none;
+      padding: 12px 18px;
+      margin: 10px;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    button:hover {
+      background: #2575fc;
+      color: white;
+      transform: scale(1.05);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Login & Auto Refresh Token</h1>
+    <button onclick="login()">Login</button>
+    <button onclick="getProtectedData()">Get Protected Data</button>
+    <button onclick="logout()">Logout</button>
+  </div>
+
+  <script>
+    const API_URL = "http://localhost:8000/user"; // change to your backend
+
+    async function login() {
+      const res = await fetch(`${API_URL}/login/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "kamlesh@example.com", password: "StrongPass123" })
+      });
+
+      const data = await res.json();
+      localStorage.setItem("accessToken", data.access_token);
+      localStorage.setItem("refreshToken", data.refresh_token);
+
+      console.log("Logged in:", data);
+      console.log("accessToken:", data.access_token);
+      console.log("RefreshToken:", data.refresh_token);
+    }
+
+    async function refreshAccessToken() {
+      const refreshToken = localStorage.getItem("refreshToken");
+      if (!refreshToken) {
+        console.error("No refresh token found.");
+        logout();
+        return null;
+      }
+
+      const res = await fetch(`${API_URL}/api/token/refresh/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({"refresh":refreshToken})
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        localStorage.setItem("accessToken", data.access);
+        localStorage.setItem("refreshToken", data.refresh)
+        console.log("Access token refreshed!");
+        console.log("AccessToken:",data.access);
+        return data.access;
+      } else {
+        console.error("Refresh failed, logging out.");
+        logout();
+        return null;
+      }
+    }
+
+    async function fetchWithAuth(url, options = {}) {
+      let accessToken = localStorage.getItem("accessToken");
+
+      options.headers = {
+        ...(options.headers || {}),
+        "Authorization": `Bearer ${accessToken}`
+      };
+
+      let res = await fetch(url, options);
+
+      if (res.status === 401) {
+        accessToken = await refreshAccessToken();
+        if (!accessToken) return null;
+        options.headers["Authorization"] = `Bearer ${accessToken}`;
+        res = await fetch(url, options);
+      }
+
+      return res;
+    }
+
+    async function getProtectedData() {
+      const res = await fetchWithAuth(`${API_URL}/protected/`);
+      if (res && res.ok) {
+        console.log("Protected data:", await res.json());
+      }
+    }
+
+    function logout() {
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      console.log("Logged out");
+    }
+  </script>
+</body>
+</html>
