@@ -28,9 +28,27 @@ It includes:
 
 ## **Backend Setup**
 
-### **Clone Repository & Navigate**
+### 1. **Clone Repository & Navigate**
 ``` bash
   git clone https://github.com/Milan677/Django-tutorial.git
+
   cd Django-session-auth/Backend
+```
+### 2. **Create Virtual envirorment & Install dependencies**
+``` bash
+   python -m venv myenv
+   source myenv/bin/activate  # Linux/Mac
+   myenv\Scripts\activate     # windows
+
+   pip install -r requirements.txt
+```
+### 3. **Run Migrations**
+``` bash
+  Python manage.py makemigrations
+  python mange.py migrate
+```
+### 4. Run Server
+``` bash
+  python manage.py runserver
 ```
 
