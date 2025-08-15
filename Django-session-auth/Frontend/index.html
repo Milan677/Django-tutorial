@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Session Auth Example</title>
+</head>
+<body>
+    <h1>Session Authentication Demo</h1>
+
+    <div id="content">
+        <!-- Login/Register UI will be injected here -->
+    </div>
+
+    <pre id="output" style="background:#f4f4f4; padding:10px;"></pre>
+
+    <script>
+        const BASE_URL = "http://127.0.0.1:8000";
+
+        let csrfToken = "";
+        let originalHTML = "";
+
+        // Fetch CSRF token once
+        async function fetchCSRFToken() {
+            if (!csrfToken) {
+                const res = await fetch(`${BASE_URL}/api/csrf/`, { credentials: "include" });
+                const data = await res.json();
+                csrfToken = data.csrfToken;
+            }
+        }
+
+        // Generic API GET
+        async function apiGet(endpoint) {
+           const res = await fetch(BASE_URL + endpoint, { credentials: "include" });
+           return res.json();
+        }
+
+        // Generic API POST
+        async function apiPost(endpoint, bodyData) {
+                await fetchCSRFToken();
+                const res = await fetch(BASE_URL + endpoint, {
+                    method: "POST",
+                    credentials: "include",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRFToken": csrfToken
+                    },
+                    body: JSON.stringify(bodyData)
+                });
+                return res.json();
+        }
+
+        // Show output
+        function showOutput(data) {
+            document.getElementById("output").textContent = JSON.stringify(data, null, 2);
+        }
+
+        // Show dashboard
+        function showDashboard(user) {
+            document.getElementById("content").innerHTML = `
+                <h2>Welcome, ${user.name}</h2>
+                <button onclick="getProtected()">Get Protected Data</button>
+                <button onclick="logoutUser()">Logout</button>
+            `;
+        }
+
+        // Show login/register form
+        function showLoginRegister() {
+            document.getElementById("content").innerHTML = `
+                <div>
+                    <h2>Register</h2>
+                    <input id="reg_email" placeholder="Email">
+                    <input id="reg_username" placeholder="name">
+                    <input id="reg_password" placeholder="Password" type="password">
+                    <button onclick="register()">Register</button>
+                </div>
+                <div>
+                    <h2>Login</h2>
+                    <input id="log_email" placeholder="Email">
+                    <input id="log_password" placeholder="Password" type="password">
+                    <button onclick="login()">Login</button>
+                </div>
+            `;
+        }
+
+        // Actions
+        async function register() {
+            const data = await apiPost("/api/register/", {
+                email: document.getElementById("reg_email").value,
+                name: document.getElementById("reg_username").value,
+                password: document.getElementById("reg_password").value
+            });
+            showOutput(data);
+        }
+
+        async function login() {
+            const data = await apiPost("/api/login/", {
+                email: document.getElementById("log_email").value,
+                password: document.getElementById("log_password").value
+            });
+            showOutput(data);
+            if (!data.error) checkLoginStatus(); // refresh UI
+        }
+
+        async function getProtected() {
+            const data = await apiGet("/api/protected/");
+            showOutput(data);
+        }
+
+        async function logoutUser() {
+            const data = await apiPost("/api/logout/", {});
+            showOutput(data);
+            checkLoginStatus();
+        }
+
+        // Check login status
+        async function checkLoginStatus() {
+            const data = await apiGet("/api/check-session-expire-or-not/");
+            if (data.authenticated) {
+                showDashboard(data);
+            } else {
+                showLoginRegister();
+            }
+        }
+
+        // Run on page load
+        checkLoginStatus();
+    </script>
+</body>
+</html>
