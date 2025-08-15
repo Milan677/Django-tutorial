@@ -30,6 +30,7 @@ It includes:
 
 ### **Clone Repository & Navigate**
 ``` bash
-  git clone 
+  git clone https://github.com/Milan677/Django-tutorial.git
+  cd Django-session-auth/Backend
 ```
 
