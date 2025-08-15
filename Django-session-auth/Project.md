@@ -28,7 +28,8 @@ It includes:
 
 ## **Backend Setup**
 
+### **Clone Repository & Navigate**
 ``` bash
-  hi
+  git clone 
 ```
 
