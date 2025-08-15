@@ -28,4 +28,7 @@ It includes:
 
 ## **Backend Setup**
 
-### 1️⃣ Install dependencies
+``` bash
+  hi
+```
+
