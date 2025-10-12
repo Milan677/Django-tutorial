@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Google Login Demo</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f3f4f6;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    #user-info {
+      margin-top: 20px;
+      padding: 15px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+      width: 300px;
+      text-align: center;
+    }
+
+    .token-box {
+      margin-top: 10px;
+      word-wrap: break-word;
+      background: #eee;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Login with Google</h1>
+
+  <!-- Google Login button will render here -->
+  <div id="g_id_onload"
+       data-client_id="177972159325-h2nk00coeeceipl9265c1jtpsktck4ve.apps.googleusercontent.com"
+       data-callback="handleCredentialResponse"
+       data-auto_prompt="false">
+  </div>
+
+  <div class="g_id_signin"
+       data-type="standard"
+       data-shape="rectangular"
+       data-theme="filled_blue"
+       data-text="signin_with"
+       data-size="large"
+       data-logo_alignment="left">
+  </div>
+
+  <div id="user-info"></div>
+
+ <script>
+  async function handleCredentialResponse(response) {
+    const token = response.credential;
+    console.log("Google ID Token:", token);
+
+    // Step 1: Send Google token to Django for verification
+    const res = await fetch("http://127.0.0.1:8000/api/google-login/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token }),
+    });
+
+    const data = await res.json();
+    console.log("Backend Response:", data);
+
+    if (data.access) {
+      // Step 2: Call user-info API using the access token
+      const userRes = await fetch("http://127.0.0.1:8000/api/user-info/", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${data.access}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      const userData = await userRes.json();
+      console.log("User Info:", userData);
+
+      // Step 3: Display both responses
+      document.getElementById("user-info").innerHTML = `
+        <h3>✅ Login Successful!</h3>
+        <p><b>Email:</b> ${data.email}</p>
+        <p><b>Name:</b> ${data.name}</p>
+
+        <div class="token-box">
+          <b>Access Token:</b><br><code>${data.access}</code>
+        </div>
+
+        <hr>
+        <h4>👤 User Info from API:</h4>
+       
+        <p><b>user ID:</b> ${userData.id}</p>
+        <p><b>Google ID:</b> ${userData.google_id}</p>
+        <p><b>Email:</b> ${userData.email}</p>
+        <p><b>Name:</b> ${userData.name}</p>
+
+        <pre>${JSON.stringify(userData, null, 2)}</pre>
+    
+
+      `;
+    } else {
+      document.getElementById("user-info").innerHTML = `
+        <h3 style="color:red;">Login Failed!</h3>
+        <p>${data.error || "Unknown error occurred."}</p>
+      `;
+    }
+  }
+</script>
+
+</body>
+</html>
