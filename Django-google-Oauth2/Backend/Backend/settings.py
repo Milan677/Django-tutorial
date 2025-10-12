@@ -154,5 +154,5 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-GOOGLE_CLIENT_ID = "177972159325-h2nk00coeeceipl9265c1jtpsktck4ve.apps.googleusercontent.com"
-GOOGLE_CLIENT_SECREATE = "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"
+# GOOGLE_CLIENT_ID = "177972159325-h2nk00coeeceipl9265c1jtpsktck4ve.apps.googleusercontent.com"
+# GOOGLE_CLIENT_SECREATE = "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"
