@@ -154,5 +154,11 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# GOOGLE_CLIENT_ID = "177972159325-h2nk00coeeceipl9265c1jtpsktck4ve.apps.googleusercontent.com"
-# GOOGLE_CLIENT_SECREATE = "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"
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+
