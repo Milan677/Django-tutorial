@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Live Nearest Fuel Depot</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+
+  <!-- Leaflet Routing Machine CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+
+  <style>
+    body { margin:0; font-family: Arial, sans-serif; }
+    #map { width: 100%; height: 80vh; }
+    #info {
+      padding: 10px;
+      background: #fff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+    .legend {
+      margin-top: 6px;
+      font-size: 14px;
+    }
+    .legend span { display:inline-block; margin-right: 12px; }
+    .dot { width:12px; height:12px; display:inline-block; vertical-align:middle; margin-right:6px; }
+    .blue { background: #1976d2; border-radius:50%; }
+    .red { background: #d32f2f; border-radius:50%; }
+  </style>
+</head>
+<body>
+  <div id="info">
+    <strong>Nearest Fuel Depot — Live</strong>
+    <div class="legend">
+      <span><span class="dot blue"></span>You</span>
+      <span><span class="dot red"></span>Nearest Depot</span>
+    </div>
+    <div id="status">Waiting for location...</div>
+  </div>
+
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- Leaflet Routing Machine -->
+  <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.min.js"></script>
+  <!-- Optional: Control Geocoder (not necessary) -->
+  <script>
+    (function () {
+     
+      const API_BASE = "http://127.0.0.1:8000"; 
+
+      // Create map
+      const map = L.map('map').setView([20.5937, 78.9629], 5); // India center
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+
+      let userMarker = null;
+      let depotMarker = null;
+      let routingControl = null;
+      let lastDepotId = null; // to avoid re-creating route if depot hasn't changed
+
+      const statusEl = document.getElementById('status');
+
+      function updateStatus(text) {
+        statusEl.innerText = text;
+      }
+
+      function clearRoute() {
+        if (routingControl) {
+          map.removeControl(routingControl);
+          routingControl = null;
+        }
+      }
+
+      function showRoute(userLat, userLon, depotLat, depotLon) {
+        clearRoute();
+        // Create new routing control — uses public OSRM server by default
+        routingControl = L.Routing.control({
+          waypoints: [
+            L.latLng(userLat, userLon),
+            L.latLng(depotLat, depotLon)
+          ],
+          routeWhileDragging: false,
+          show: false,
+          addWaypoints: false,
+          draggableWaypoints: false,
+          fitSelectedRoute: true,
+          lineOptions: {
+            styles: [{color: 'blue', opacity: 0.7, weight: 5}]
+          },
+          createMarker: function(i, wp, n) {
+            // i=0 -> user marker, i=1 -> depot
+            if (i === 0) {
+              // Blue circle for user (we will also use a persistent marker)
+              return L.circleMarker(wp.latLng, {radius: 7, color: '#1976d2', fillColor:'#1976d2', fillOpacity:1});
+            } else {
+              return L.circleMarker(wp.latLng, {radius: 7, color: '#d32f2f', fillColor:'#d32f2f', fillOpacity:1});
+            }
+          }
+        }).addTo(map);
+      }
+
+      function updateMapWithDepot(data, userLat, userLon) {
+        if (!data) {
+          updateStatus("No depot returned by server.");
+          return;
+        }
+        const depotLat = data.latitude;
+        const depotLon = data.longitude;
+        const depotName = data.name;
+        const distKm = data.distance_km;
+
+        // Update user marker
+        if (!userMarker) {
+          userMarker = L.circleMarker([userLat, userLon], {radius: 7, color:'#1976d2', fillColor:'#1976d2', fillOpacity:1})
+            .addTo(map)
+            .bindPopup("You (live)");
+        } else {
+          userMarker.setLatLng([userLat, userLon]);
+        }
+
+        // Update depot marker
+        if (!depotMarker) {
+          depotMarker = L.circleMarker([depotLat, depotLon], {radius: 7, color:'#d32f2f', fillColor:'#d32f2f', fillOpacity:1})
+            .addTo(map)
+            .bindPopup(`${depotName}<br>${distKm ? distKm.toFixed(2) + ' km' : ''}`);
+        } else {
+          depotMarker.setLatLng([depotLat, depotLon]);
+          depotMarker.setPopupContent(`${depotName}<br>${distKm ? distKm.toFixed(2) + ' km' : ''}`);
+        }
+
+        // If depot changed or route doesn't exist, recreate route
+        // (We use lastDepotId if server returned id to check.)
+        showRoute(userLat, userLon, depotLat, depotLon);
+
+        updateStatus(`Nearest: ${depotName} — ${distKm ? distKm.toFixed(2) + ' km' : 'distance unknown'}`);
+      }
+
+      // Call backend to get nearest depot
+      async function fetchNearestDepot(userLat, userLon) {
+        try {
+          const url = `${API_BASE}/api/nearest-depot/?lat=${encodeURIComponent(userLat)}&lon=${encodeURIComponent(userLon)}`;
+          const res = await fetch(url);
+          if (!res.ok) {
+            const text = await res.text();
+            updateStatus('Server error: ' + res.status + ' ' + text);
+            return null;
+          }
+          const data = await res.json();
+          return data;
+        } catch (err) {
+          updateStatus('Network error: ' + err.message);
+          return null;
+        }
+      }
+
+      // Live tracking
+      function success(pos) {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+
+        // center map a bit on first fix
+        if (!userMarker) map.setView([lat, lon], 13);
+
+        fetchNearestDepot(lat, lon)
+          .then(data => {
+            if (data) updateMapWithDepot(data, lat, lon);
+          });
+      }
+
+      function error(err) {
+        updateStatus('Geolocation error: ' + err.message);
+      }
+
+  const USE_MANUAL = true;
+
+// start somewhere
+let simLat = 22.5390;
+let simLon = 88.3650;
+
+if (!USE_MANUAL && navigator.geolocation) {
+
+    navigator.geolocation.watchPosition(success, error, {
+        enableHighAccuracy: false,
+        maximumAge: 5000,
+        timeout: 30000
+    });
+    updateStatus('Requesting live location...');
+
+} else {
+
+    updateStatus('Using simulated moving coordinates...');
+
+    setInterval(() => {
+        // simulate small movement in random direction
+        const move = 0.0003; // ≈30m per step
+        simLat += (Math.random() - 0.5) * move;
+        simLon += (Math.random() - 0.5) * move;
+
+        success({
+            coords: {
+                latitude: simLat,
+                longitude: simLon
+            }
+        });
+
+    }, 2000);
+}
+
+
+    })();
+  </script>
+</body>
+</html>

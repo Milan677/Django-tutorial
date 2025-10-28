@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Live Nearest Fuel Depot</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+  <style>
+    /* body{margin:0;font-family:sans-serif;}
+    #map{width:100%;height:90vh;}
+    #status{padding:10px;background:#fff;} */
+
+    body { margin:0; font-family: Arial, sans-serif; }
+    #map { width: 100%; height: 80vh; }
+    #info {
+      padding: 10px;
+      background: #fff;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+    .legend {
+      margin-top: 6px;
+      font-size: 14px;
+    }
+    .legend span { display:inline-block; margin-right: 12px; }
+    .dot { width:12px; height:12px; display:inline-block; vertical-align:middle; margin-right:6px; }
+    .blue { background: #1976d2; border-radius:50%; }
+    .red { background: #d32f2f; border-radius:50%; }
+  </style>
+</head>
+<body>
+
+<div id="info">
+    <strong>Nearest Fuel Depot — Live</strong>
+    <div class="legend">
+      <span><span class="dot blue"></span>You</span>
+      <span><span class="dot red"></span>Nearest Depot</span>
+    </div>
+    <div id="status">Waiting for location...</div>
+  </div>
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.min.js"></script>
+
+<script>
+(function(){
+
+  const API_BASE = "http://127.0.0.1:8000";
+  const statusEl = document.getElementById('status');
+  const throttleDelay = 5000;
+  let manualMode = false;
+  let lastApiCall = 0;
+
+  function setStatus(t){ statusEl.innerText = t; }
+
+  // map
+  const map = L.map('map').setView([20.5,78.9],5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+  let userMarker=null, depotMarker=null, routingControl=null;
+
+  function clearRoute(){
+    if(routingControl){
+      map.removeControl(routingControl);
+      routingControl=null;
+    }
+  }
+
+  function drawRoute(ulat,ulon,dlat,dlon){
+    clearRoute();
+    routingControl = L.Routing.control({
+      waypoints:[L.latLng(ulat,ulon),L.latLng(dlat,dlon)],
+      draggableWaypoints:false, addWaypoints:false, fitSelectedRoute:true, show:false,
+      lineOptions:{styles:[{weight:5,opacity:0.7}]}
+    }).addTo(map);
+  }
+
+  async function handleDepot(userLat,userLon){
+    const now=Date.now();
+    if(now-lastApiCall < throttleDelay) return;
+    lastApiCall = now;
+
+    try{
+      const r = await fetch(`${API_BASE}/api/nearest-depot/?lat=${userLat}&lon=${userLon}`);
+      if(!r.ok){ setStatus("Server error "+r.status); return; }
+      const d = await r.json();
+
+      // user marker
+      if(!userMarker){
+        userMarker = L.circleMarker([userLat,userLon],{radius:7,fillOpacity:1}).addTo(map);
+      } else userMarker.setLatLng([userLat,userLon]);
+
+      // depot marker
+      if(!depotMarker){
+        depotMarker = L.circleMarker([d.latitude,d.longitude],{radius:7,color:'red',fillColor:'red',fillOpacity:1})
+          .addTo(map).bindPopup(d.name);
+      } else {
+        depotMarker.setLatLng([d.latitude,d.longitude]);
+        depotMarker.setPopupContent(d.name);
+      }
+
+      drawRoute(userLat,userLon,d.latitude,d.longitude);
+      setStatus(`Nearest: ${d.name} — ${d.distance_km?.toFixed(2)} km`);
+
+    }catch(e){
+      setStatus("Network error: "+e.message);
+    }
+  }
+
+  // ===== MANUAL MODE SIM =================
+  let simLat = 22.5726, simLon = 88.3639;
+  function startManualSim(){
+    manualMode = true;
+    setStatus("Manual test mode (simulating movement)...");
+    setInterval(()=>{
+      simLat += (Math.random()-0.5)*0.002;
+      simLon += (Math.random()-0.5)*0.002;
+      if(!userMarker) map.setView([simLat,simLon],13);
+      handleDepot(simLat,simLon);
+    },3000);
+  }
+
+  // ===== LIVE MODE =================
+  function success(pos){
+    const lat = pos.coords.latitude;
+    const lon = pos.coords.longitude;
+    if(!userMarker) map.setView([lat,lon],13);
+    handleDepot(lat,lon);
+  }
+  function error(err){
+    setStatus("Geo blocked or failed → switching to manual mode...");
+    startManualSim();
+  }
+
+  if(navigator.geolocation){
+    setStatus("Requesting GPS...");
+    navigator.geolocation.watchPosition(success,error,{enableHighAccuracy:true});
+  } else {
+    setStatus("No GPS support → manual mode.");
+    startManualSim();
+  }
+
+})();
+</script>
+</body>
+</html>
+
