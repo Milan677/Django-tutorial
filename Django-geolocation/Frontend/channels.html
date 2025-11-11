@@ -305,27 +305,111 @@
 
 <script>
 (function(){
-
-  const API_BASE = "http://127.0.0.1:8000";
+  // WebSocket-based version
+  const WS_URL = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws/nearest-depot/";
   const statusEl = document.getElementById('status');
   const depotListEl = document.getElementById('depot-list');
-  const throttleDelay = 5000;
-  let manualMode = false;
-  let lastApiCall = 0;
 
   function setStatus(t){ if(statusEl) statusEl.innerText = t; }
 
-  // map
+  // map init (same as before)
   const map = L.map('map').setView([20.5,78.9],5);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
+  let ws = null;
+  let wsReady = false;
+  let reconnectTimer = null;
   let userMarker = null;
-  let depotMarkers = [];   // holds 3 L.CircleMarker objects
+  let depotMarkers = [];
   let routingControl = null;
-  let currentDepots = [];   // holds top3 array from backend
-  let activeIndex = -1;     // which depot index in currentDepots is selected (-1 = none)
-  let selectedDepotId = null; // persists selection across API updates (use id if provided, fallback to name)
+  let currentDepots = [];
+  let activeIndex = -1;
+  let selectedDepotId = null;
 
+  // websocket connect / reconnect
+  function connectWs(){
+    if(ws) {
+      try { ws.close(); } catch(e){}
+      ws = null;
+    }
+
+    // ws = new WebSocket(WS_URL);
+    ws = new WebSocket("ws://127.0.0.1:8000/ws/nearest-depot/");
+
+    ws.addEventListener('open', () => {
+      wsReady = true;
+      setStatus("WebSocket connected — waiting for location...");
+      if(reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+    });
+
+    ws.addEventListener('message', (ev) => {
+      let payload = null;
+      try { payload = JSON.parse(ev.data); } catch(e){ console.error("WS parse err", e); return; }
+
+      // server info messages
+      if(payload.info){
+        // ignore or show
+        return;
+      }
+      if(payload.error){
+        console.warn("Server error via WS:", payload);
+        setStatus("Server error: " + (payload.error || 'unknown'));
+        return;
+      }
+      const results = payload.results || [];
+      // Use existing update logic to update markers & sidebar
+      currentDepots = results.slice(0,3);
+      // try to preserve selection
+      if(selectedDepotId != null){
+        const found = currentDepots.findIndex(d => (d.id!=null ? d.id : d.name) === selectedDepotId);
+        if(found !== -1){
+          activeIndex = found;
+        } else {
+          activeIndex = -1;
+          selectedDepotId = null;
+          clearRoute();
+        }
+      } else {
+        activeIndex = -1;
+      }
+
+      // show user marker already done in geolocation handler; here just create depot markers
+      renderDepotMarkers();
+      renderSidebar(currentDepots);
+
+      if(activeIndex === -1){
+        setStatus("3 depots loaded — select one from the sidebar to show route.");
+      } else {
+        setStatus("Selection preserved — routing to selected depot.");
+        // redraw route (use current user marker position if available)
+        if(userMarker && currentDepots[activeIndex]){
+          const latlng = userMarker.getLatLng();
+          const d = currentDepots[activeIndex];
+          drawRoute(latlng.lat, latlng.lng, d.latitude, d.longitude);
+        }
+      }
+    });
+
+    ws.addEventListener('close', (ev) => {
+      wsReady = false;
+      setStatus("WebSocket closed — attempting reconnect...");
+      // reconnect with backoff
+      if(!reconnectTimer){
+        reconnectTimer = setTimeout(() => {
+          connectWs();
+        }, 2000);
+      }
+    });
+
+    ws.addEventListener('error', (ev) => {
+      wsReady = false;
+      console.error("WS error", ev);
+      setStatus("WebSocket error");
+      try { ws.close(); } catch(e){}
+    });
+  }
+
+  // route helpers (same as before)
   function clearRoute(){
     if(routingControl){
       try{ map.removeControl(routingControl); }catch(e){}
@@ -333,37 +417,30 @@
     }
   }
 
-  // draw route but KEEP current zoom (do not fit bounds)
   function drawRoute(ulat,ulon,dlat,dlon){
     clearRoute();
     routingControl = L.Routing.control({
       waypoints:[L.latLng(ulat,ulon),L.latLng(dlat,dlon)],
       draggableWaypoints:false,
       addWaypoints:false,
-      // keep current zoom / view instead of auto-fit
       fitSelectedRoute:true,
       show:false,
       lineOptions:{styles:[{weight:5,opacity:0.7}]}
     }).addTo(map);
   }
 
-  // move or create user marker (blue)
   function showUserOnMap(ulat,ulon){
     if(!userMarker){
       userMarker = L.circleMarker([ulat,ulon],{
-        radius:7,
-        fillOpacity:1,
-        color:'#1976d2',
-        fillColor:'#1976d2'
+        radius:7, fillOpacity:1, color:'#1976d2', fillColor:'#1976d2'
       }).addTo(map).bindPopup("You are here");
     } else {
       userMarker.setLatLng([ulat,ulon]);
     }
   }
 
-  // helper to (re)create depot markers for currentDepots
+  // render depot markers (recreates)
   function renderDepotMarkers(){
-    // remove old markers
     depotMarkers.forEach(m => {
       try{ map.removeLayer(m); }catch(e){}
     });
@@ -372,16 +449,11 @@
     currentDepots.forEach((d, idx) => {
       const color = (idx === activeIndex) ? 'red' : 'grey';
       const marker = L.circleMarker([d.latitude, d.longitude],{
-        radius:7,
-        fillOpacity:1,
-        color: color,
-        fillColor: color
+        radius:7, fillOpacity:1, color: color, fillColor: color
       }).addTo(map).bindPopup(d.name || 'Depot');
 
-      // marker click selects the depot
       marker.on('click', () => {
-        // get user coords if available
-        let userLat = null, userLon = null;
+        let userLat=null, userLon=null;
         if(userMarker){
           const latlng = userMarker.getLatLng();
           userLat = latlng.lat; userLon = latlng.lng;
@@ -393,28 +465,20 @@
     });
   }
 
-  // update colors of depot markers based on activeIndex
   function refreshDepotMarkerStyles(){
     depotMarkers.forEach((m, idx) => {
       const color = (idx === activeIndex) ? 'red' : 'grey';
-      try{
-        m.setStyle({ color: color, fillColor: color });
-      }catch(e){}
+      try{ m.setStyle({ color: color, fillColor: color }); }catch(e){}
     });
   }
 
-  // select a depot from sidebar (index in currentDepots) — updates map marker, route,
-  // status and active highlight. userLat/userLon optional; if null, we attempt to use userMarker
   function selectDepotByIndex(index, userLat, userLon){
     if(!currentDepots || !currentDepots.length) return;
     if(index < 0 || index >= currentDepots.length) return;
     activeIndex = index;
     const depot = currentDepots[index];
-
-    // persist selection id (fall back to name)
     selectedDepotId = depot.id != null ? depot.id : depot.name;
 
-    // ensure we have user coords (try userMarker if none provided)
     if(userLat == null || userLon == null){
       if(userMarker){
         const latlng = userMarker.getLatLng();
@@ -422,24 +486,20 @@
       }
     }
 
-    // draw route only if we have user coords
     if(userLat != null && userLon != null){
-      drawRoute(userLat, userLon, depot.latitude, depot.longitude);
+      drawRoute(userLat,userLon,depot.latitude,depot.longitude);
       setStatus(`Route to: ${depot.name} (${depot.distance_km ? Number(depot.distance_km).toFixed(2)+' km' : ''})`);
     } else {
       clearRoute();
       setStatus(`Selected: ${depot.name} — user location unknown; cannot draw route.`);
     }
 
-    // update marker styles (selected red, others grey)
     refreshDepotMarkerStyles();
-
-    // update sidebar highlight and open popup for selected depot marker
     updateSidebarHighlight();
     if(depotMarkers[index]) depotMarkers[index].openPopup();
   }
 
-  // update sidebar HTML
+  // sidebar rendering (kept similar to your original)
   function renderSidebar(depots){
     depotListEl.innerHTML = '';
     if(!depots || depots.length === 0){
@@ -471,8 +531,6 @@
       item.appendChild(btn);
 
       item.addEventListener('click', () => {
-        // on click, immediately update map (bypass throttle)
-        // find current user coords if available
         let userLat = null, userLon = null;
         if(userMarker){
           const latlng = userMarker.getLatLng();
@@ -492,129 +550,67 @@
     if(active) active.classList.add('active');
   }
 
-  // main handler — expects backend to return {"results": [ ...top3 depots... ]}
-  async function handleDepot(userLat,userLon){
-    const now=Date.now();
-    if(now-lastApiCall < throttleDelay) return;
-    lastApiCall = now;
-
-    try{
-      const r = await fetch(`${API_BASE}/api/nearest-three-depot/?lat=${userLat}&lon=${userLon}`);
-      if(!r.ok){ setStatus("Server error "+r.status); return; }
-      const payload = await r.json();
-
-      // Expecting payload.results as array
-      const results = payload.results || (Array.isArray(payload) ? payload : []);
-      if(!results || results.length === 0){
-        setStatus("No depots returned by API");
-        return;
-      }
-
-      // Save current depots and ensure max 3
-      currentDepots = results.slice(0,3);
-
-      // Try to preserve an existing selection (by id or name)
-      if(selectedDepotId != null){
-        const found = currentDepots.findIndex(d => {
-          const key = d.id != null ? d.id : d.name;
-          return key === selectedDepotId;
-        });
-        if(found !== -1){
-          activeIndex = found;
-        } else {
-          // previously selected depot not present in this fresh results
-          activeIndex = -1;
-          selectedDepotId = null;
-          clearRoute();
-        }
-      } else {
-        activeIndex = -1; // nothing selected initially
-      }
-
-      // show user marker
-      showUserOnMap(userLat,userLon);
-
-      // create 3 depot markers (no route yet)
-      renderDepotMarkers();
-
-      // update sidebar and status (no auto-route unless selection exists)
-      renderSidebar(currentDepots);
-      if(activeIndex === -1){
-        setStatus("3 depots loaded — select one from the sidebar to show route.");
-      } else {
-        // if there is an existing selection, ensure marker styles and route reflect it
-        refreshDepotMarkerStyles();
-        setStatus("Selection preserved — routing to selected depot.");
-        // if user coords available, redraw route from current user position
-        if(userLat != null && userLon != null && currentDepots[activeIndex]){
-          const d = currentDepots[activeIndex];
-          drawRoute(userLat, userLon, d.latitude, d.longitude);
-        }
-      }
-
-    }catch(e){
-      setStatus("Network error: "+e.message);
-    }
-  }
-
-  // ===== MANUAL MODE SIM =================
-  let simLat = 28.614900, simLon = 77.209000;
-  let simInterval = null;
-
-  function startManualSim(){
-    manualMode = true;
-    setStatus("Manual test mode (simulating movement)...");
-    if(simInterval) clearInterval(simInterval);
-
-    simInterval = setInterval(()=>{
-      simLat += (Math.random()-0.5)*0.002;
-      simLon += (Math.random()-0.5)*0.002;
-
-      // map always follows simulated user
-      map.setView([simLat,simLon]);
-
-      // refresh markers & list
-      handleDepot(simLat,simLon);
-
-      // auto redraw route in test mode if a depot is selected
-      if (activeIndex !== -1 && currentDepots[activeIndex]) {
-          const d = currentDepots[activeIndex];
-          drawRoute(simLat, simLon, d.latitude, d.longitude);
-      }
-
-    },3000);
-  }
-
-  function stopManualSim(){
-    if(simInterval) { clearInterval(simInterval); simInterval = null; }
-  }
-
-  // ===== LIVE MODE =================
+  // Geolocation handlers — send position to server via WebSocket
   function success(pos){
     const lat = pos.coords.latitude;
     const lon = pos.coords.longitude;
 
-    // map follows user on every update
+    // follow user on map
     map.setView([lat,lon]);
 
     showUserOnMap(lat,lon);
 
-    handleDepot(lat,lon);
+    // send over WS (if ready)
+    if(wsReady && ws && ws.readyState === WebSocket.OPEN){
+      ws.send(JSON.stringify({lat: lat, lon: lon}));
+    } else {
+      // if websocket not ready, try to connect
+      if(!ws) connectWs();
+    }
 
-    // ---- RE-DRAW ROUTE ON EVERY MOVE IF ONE IS SELECTED ----
+    // redraw route if a depot is selected
     if (activeIndex !== -1 && currentDepots[activeIndex]) {
         const d = currentDepots[activeIndex];
         drawRoute(lat, lon, d.latitude, d.longitude);
     }
   }
+
   function error(err){
     setStatus("Geo blocked or failed → switching to manual mode...");
     startManualSim();
   }
 
+  // Manual sim (same as your earlier manual sim)
+  let simLat = 28.614900, simLon = 77.209000;
+  let simInterval = null;
+  function startManualSim(){
+    if(simInterval) clearInterval(simInterval);
+    setStatus("Manual test mode (simulating movement)...");
+    simInterval = setInterval(()=>{
+      simLat += (Math.random()-0.5)*0.002;
+      simLon += (Math.random()-0.5)*0.002;
+      map.setView([simLat,simLon]);
+      showUserOnMap(simLat,simLon);
+      // send to server via WS
+      if(wsReady && ws && ws.readyState === WebSocket.OPEN){
+        ws.send(JSON.stringify({lat: simLat, lon: simLon}));
+      }
+      if (activeIndex !== -1 && currentDepots[activeIndex]) {
+          const d = currentDepots[activeIndex];
+          drawRoute(simLat, simLon, d.latitude, d.longitude);
+      }
+    },3000);
+  }
+  function stopManualSim(){
+    if(simInterval){ clearInterval(simInterval); simInterval = null; }
+  }
+
+  // start WS + geolocation
+  connectWs();
+
   if(navigator.geolocation){
     setStatus("Requesting GPS...");
-    navigator.geolocation.watchPosition(success,error,{enableHighAccuracy:true});
+    navigator.geolocation.watchPosition(success, error, { enableHighAccuracy: true });
   } else {
     setStatus("No GPS support → manual mode.");
     startManualSim();
@@ -622,6 +618,7 @@
 
 })();
 </script>
+
 
 
 </body>

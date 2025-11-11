@@ -1,0 +1,191 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google OAuth JWT Example</title>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+  <h1>Login with Google</h1>
+  <div id="g_id_signin"></div>
+  <div id="profile"></div>
+
+  <script>
+    const USER_GOOGLE_LOGIN = "http://127.0.0.1:8000/user/google/";
+    const USER_PROFILE_API = "http://127.0.0.1:8000/user/profile/";
+
+    // Google One Tap / JS SDK callback
+    function handleCredentialResponse(response) {
+      const googleToken = response.credential;
+      console.log("Google token:", googleToken);
+
+      // Send Google token to backend REST endpoint
+      fetch(USER_GOOGLE_LOGIN, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include", // required if using cookies
+        body: JSON.stringify({ access_token: googleToken })
+      })
+      .then(res => res.json())
+      .then(data => {
+        console.log("JWT received:", data);
+
+        // Store JWT in localStorage if not using cookies
+        localStorage.setItem("accessToken", data.access);
+        localStorage.setItem("refreshToken", data.refresh);
+
+        fetchProfile();
+      })
+      .catch(err => console.error(err));
+    }
+
+    window.handleCredentialResponse = handleCredentialResponse;
+
+    // Render Google Sign-in button
+    window.onload = function () {
+      google.accounts.id.initialize({
+        client_id: "177972159325-h2nk00coeeceipl9265c1jtpsktck4ve.apps.googleusercontent.com",
+        callback: handleCredentialResponse
+      });
+
+      google.accounts.id.renderButton(
+        document.getElementById("g_id_signin"),
+        { theme: "outline", size: "large" }
+      );
+    }
+
+    async function fetchProfile() {
+      const token = localStorage.getItem("accessToken");  // optional if using cookies
+      if (!token) return;
+
+      try {
+        const response = await fetch(USER_PROFILE_API, {
+          headers: { "Authorization": `Bearer ${token}` }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          document.getElementById("profile").innerHTML = `
+            <h2>User Profile</h2>
+            <p><strong>ID:</strong> ${data.user_id}</p>
+            <p><strong>Email:</strong> ${data.email}</p>
+            <p><strong>Full Name:</strong> ${data.fullname}</p>
+          `;
+        } else {
+          document.getElementById("profile").innerHTML = "<p>Failed to fetch user profile</p>";
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  </script>
+</body>
+</html> -->
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Facebook Login with Django + JWT</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background: #f0f2f5;
+    }
+
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      text-align: center;
+    }
+
+    button {
+      background-color: #1877f2;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    button:hover {
+      background-color: #145dbf;
+    }
+
+    pre {
+      text-align: left;
+      background: #f7f7f7;
+      padding: 15px;
+      border-radius: 5px;
+      max-width: 500px;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h2>🔐 Facebook Login with Django + JWT</h2>
+    <button onclick="facebookLogin()">Login with Facebook</button>
+    <div id="result"></div>
+  </div>
+
+  <!-- Facebook SDK -->
+  <script async defer crossorigin="anonymous" 
+    src="https://connect.facebook.net/en_US/sdk.js"></script>
+
+  <script>
+    // Initialize Facebook SDK
+    window.fbAsyncInit = function() {
+      FB.init({
+        appId      : '2647325695607782', 
+        cookie     : true,
+        xfbml      : true,
+        version    : 'v20.0'
+      });
+    };
+
+    function facebookLogin() {
+      FB.login(function(response) {
+        if (response.authResponse) {
+          const accessToken = response.authResponse.accessToken;
+          console.log("Facebook Access Token:", accessToken);
+
+          // Send token to Django backend
+          fetch("http://127.0.0.1:8000/auth/facebook/", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ access_token: accessToken })
+          })
+          .then(res => res.json())
+          .then(data => {
+            document.getElementById("result").innerHTML = `
+              <h3>✅ Login Successful</h3>
+              <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+          })
+          .catch(err => {
+            document.getElementById("result").innerHTML = `
+              <h3>❌ Error</h3>
+              <pre>${err}</pre>
+            `;
+          });
+        } else {
+          alert("Facebook login cancelled or failed.");
+        }
+      }, { scope: 'public_profile,email' }); // 👈 Request email permission
+    }
+  </script>
+
+</body>
+</html>
