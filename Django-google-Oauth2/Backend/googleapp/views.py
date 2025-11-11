@@ -71,3 +71,31 @@ def get_user_info(request):
         "email": user.email,
         "google_id": getattr(user, "google_id", None),
     }, status=status.HTTP_200_OK)
+
+
+
+from django.core.mail import send_mail
+from django.http import JsonResponse
+from django.conf import settings
+
+def send_static_mail(request):
+    subject = "Test Email from Django"
+    message = (
+        "Hello!\n\n"
+        "This is a static test email sent using Django's default email settings.\n"
+        "If you received this, your email configuration is correct.\n\n"
+        "— Dreamwave Innovation"
+    )
+    recipient_list=["noble@global.co.za"]  # Change to your test recipient
+
+    try:
+        send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL,  # Uses DEFAULT_FROM_EMAIL from settings
+            recipient_list,
+            fail_silently=False,
+        )
+        return JsonResponse({"status": "success", "message": "Email sent successfully"})
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)})

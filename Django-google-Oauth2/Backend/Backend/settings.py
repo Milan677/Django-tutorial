@@ -162,3 +162,40 @@ load_dotenv()
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = 'mail.opiglo.co.za'
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = 'info@opiglo.co.za'
+# EMAIL_HOST_PASSWORD = 'Inform@10'
+
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST ='smtp.hostinger.com'
+# EMAIL_PORT = 465  # Use 587 for STARTTLS
+# EMAIL_USE_TLS = False  # Enable STARTTLS encryption
+# EMAIL_USE_SSL = True  # Do not use SSL (since STARTTLS is used)
+# EMAIL_HOST_USER = 'kamlesh@dreamwaveinnovation.com'  # Your provided email
+# EMAIL_HOST_PASSWORD = 'Milan@677'  # Replace with actual password
+# DEFAULT_FROM_EMAIL = 'kamlesh@dreamwaveinnovation.com'
+
+# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+# EMAIL_HOST = 'smtpauth.mweb.co.za'
+# EMAIL_PORT = 587
+# EMAIL_USE_TLS = True
+# EMAIL_HOST_USER = 'info@opiglo.co.za'
+# EMAIL_HOST_PASSWORD = 'Inform@10'
+# DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+# settings.py
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'info@opiglo.com'  # your Google Workspace email
+EMAIL_HOST_PASSWORD = 'qwsxtwuswtmptkgu'  # app password, not normal password
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+
+
+

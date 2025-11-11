@@ -15,5 +15,7 @@ urlpatterns = [
   
     path('google-login/',google_login, name='login'),
     path("user-info/", get_user_info, name="user-info"),
+
+    path('send-mail/', send_static_mail, name='send_static_mail'),
  
 ]
