@@ -1,0 +1,414 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard - Permissions</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .model-card {
+            background: #ffffff;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .model-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .model-title h2 {
+            margin: 0;
+            text-transform: capitalize;
+        }
+
+        .app-label {
+            font-size: 13px;
+            background: #e9ecef;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .permissions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+
+        .permission-item {
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #fafafa;
+        }
+
+        .permission-item label {
+            cursor: pointer;
+        }
+
+        .action {
+            font-weight: bold;
+            text-transform: capitalize;
+        }
+
+        .error {
+            color: red;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Admin Dashboard – Permissions</h1>
+
+<div id="permissionsContainer"></div>
+<p id="error" class="error"></p>
+
+<script>
+    async function loadPermissions() {
+        const container = document.getElementById("permissionsContainer");
+        const errorEl = document.getElementById("error");
+
+        try {
+            const response = await fetch("http://127.0.0.1:8000/api/permissions/", {
+                headers: {
+                    "Content-Type": "application/json",
+                    // Add JWT later if needed
+                    // "Authorization": "Bearer " + localStorage.getItem("access_token")
+                }
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                errorEl.textContent = "Failed to load permissions";
+                return;
+            }
+
+            container.innerHTML = "";
+
+            Object.entries(data).forEach(([model, modelData]) => {
+                const card = document.createElement("div");
+                card.className = "model-card";
+
+                const permissionsHTML = modelData.permissions.map(p => `
+                    <div class="permission-item">
+                        <input 
+                            type="checkbox" 
+                            id="perm-${p.id}" 
+                            value="${p.id}"
+                        />
+                        <label for="perm-${p.id}">
+                            <span class="action">${p.action}</span><br/>
+                            <small>${p.name}</small>
+                        </label>
+                    </div>
+                `).join("");
+
+                card.innerHTML = `
+                    <div class="model-title">
+                        <h2>${model}</h2>
+                        <span class="app-label">${modelData.app}</span>
+                    </div>
+
+                    <div class="permissions">
+                        ${permissionsHTML}
+                    </div>
+                `;
+
+                container.appendChild(card);
+            });
+
+        } catch (error) {
+            errorEl.textContent = "Server error while loading permissions";
+            console.error(error);
+        }
+    }
+
+    loadPermissions();
+</script>
+
+</body>
+</html> -->
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Admin Dashboard - Manage User Permissions</title>
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #f4f6f8;
+    margin: 0;
+    padding: 20px;
+}
+h1 {
+    text-align: center;
+    margin-bottom: 30px;
+}
+.select-user {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+.select-user select {
+    padding: 8px;
+    font-size: 16px;
+    width: 250px;
+}
+.model-card {
+    background: #ffffff;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.model-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+.model-title h2 {
+    margin: 0;
+    text-transform: capitalize;
+}
+.app-label {
+    font-size: 13px;
+    background: #e9ecef;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+.permissions {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+}
+.permission-item {
+    border: 1px solid #ddd;
+    padding: 10px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #fafafa;
+}
+.permission-item label {
+    cursor: pointer;
+}
+.action {
+    font-weight: bold;
+    text-transform: capitalize;
+}
+.buttons {
+    text-align: center;
+    margin-top: 20px;
+}
+button {
+    padding: 10px 20px;
+    margin: 0 10px;
+    background-color: #007bff;
+    border: none;
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+}
+button:hover {
+    background-color: #0056b3;
+}
+.error {
+    color: red;
+    text-align: center;
+}
+.success {
+    color: green;
+    text-align: center;
+}
+</style>
+</head>
+<body>
+
+<h1>Admin Dashboard – Manage User Permissions</h1>
+<a href="permission.html">pages</a>
+
+<div class="select-user">
+    <select id="userSelect">
+        <option value="">Select User</option>
+    </select>
+</div>
+
+<div id="permissionsContainer"></div>
+
+<div class="buttons">
+    <button id="saveBtn">Save Permissions</button>
+</div>
+
+<p id="message" class="error"></p>
+
+<script>
+const API_BASE = "http://127.0.0.1:8000/api"; // Change if needed
+let allPermissions = {}; // To store all permissions from API
+
+// Load all permissions
+async function loadPermissions() {
+    try {
+        const res = await fetch(`${API_BASE}/permissions/`, {
+            headers: {
+                "Content-Type": "application/json"
+            }
+        });
+        const data = await res.json();
+        allPermissions = data;
+        renderPermissions(data);
+    } catch (err) {
+        document.getElementById("message").textContent = "Error loading permissions";
+        console.error(err);
+    }
+}
+
+// Render permissions with checkboxes
+function renderPermissions(data) {
+    const container = document.getElementById("permissionsContainer");
+    container.innerHTML = "";
+    Object.entries(data).forEach(([model, modelData]) => {
+        const card = document.createElement("div");
+        card.className = "model-card";
+
+        const permsHTML = modelData.permissions.map(p => `
+            <div class="permission-item">
+                <input type="checkbox" id="perm-${p.id}" value="${p.id}">
+                <label for="perm-${p.id}">
+                    <span class="action">${p.action}</span><br/>
+                    <small>${p.name}</small>
+                </label>
+            </div>
+        `).join("");
+
+        card.innerHTML = `
+            <div class="model-title">
+                <h2>${model}</h2>
+                <span class="app-label">${modelData.app}</span>
+            </div>
+            <div class="permissions">
+                ${permsHTML}
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+// Load users into dropdown
+async function loadUsers() {
+    try {
+        const res = await fetch(`${API_BASE}/users/`, {
+            headers: { "Content-Type": "application/json" }
+        });
+        const users = await res.json();
+        const select = document.getElementById("userSelect");
+        users.forEach(u => {
+            const option = document.createElement("option");
+            option.value = u.id;
+            option.textContent = `${u.username} (${u.role})`;
+            select.appendChild(option);
+        });
+    } catch (err) {
+        document.getElementById("message").textContent = "Error loading users";
+        console.error(err);
+    }
+}
+
+// Load selected user's permissions
+async function loadUserPermissions(userId) {
+    if (!userId) return;
+    try {
+        const res = await fetch(`${API_BASE}/users/${userId}/permissions/list/`, {
+            headers: { "Content-Type": "application/json" }
+        });
+        const data = await res.json();
+
+        // Uncheck all first
+        document.querySelectorAll("#permissionsContainer input[type='checkbox']").forEach(cb => cb.checked = false);
+
+        // Check only the ones the user has
+        Object.values(data.permissions).forEach(model => {
+            model.permissions.forEach(p => {
+                const cb = document.getElementById(`perm-${p.id}`);
+                if(cb) cb.checked = p.assigned;
+            });
+        });
+
+    } catch (err) {
+        document.getElementById("message").textContent = "Error loading user's permissions";
+        console.error(err);
+    }
+}
+
+// Save modified permissions for the user
+async function savePermissions() {
+    const userId = document.getElementById("userSelect").value;
+    if (!userId) {
+        document.getElementById("message").textContent = "Select a user first";
+        return;
+    }
+
+    // Collect checked permission IDs
+    const checkedIds = Array.from(document.querySelectorAll("#permissionsContainer input[type='checkbox']:checked"))
+        .map(cb => parseInt(cb.value));
+
+    try {
+        const res = await fetch(`${API_BASE}/users/${userId}/permissions/add/`, {
+            method: "POST", // You need to implement POST in backend to update permissions
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ permissions: checkedIds })
+        });
+
+        if(res.ok) {
+            document.getElementById("message").textContent = "Permissions updated successfully";
+            document.getElementById("message").className = "success";
+        } else {
+            const data = await res.json();
+            document.getElementById("message").textContent = data.error || "Failed to update";
+            document.getElementById("message").className = "error";
+        }
+    } catch (err) {
+        document.getElementById("message").textContent = "Server error while saving permissions";
+        console.error(err);
+    }
+}
+
+// Event listeners
+document.getElementById("userSelect").addEventListener("change", (e) => {
+    loadUserPermissions(e.target.value);
+});
+
+document.getElementById("saveBtn").addEventListener("click", savePermissions);
+
+// Initialize dashboard
+loadPermissions();
+loadUsers();
+</script>
+
+</body>
+</html>
+

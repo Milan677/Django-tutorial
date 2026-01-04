@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Permission Dashboard</title>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #f4f6f8;
+    padding: 30px;
+    text-align: center;
+}
+
+h1 {
+    margin-bottom: 20px;
+}
+
+.container {
+    display: flex;
+    justify-content: center;
+    gap: 25px;
+    flex-wrap: wrap;
+}
+
+.card {
+    background: #fff;
+    width: 180px;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.card h2 {
+    text-transform: capitalize;
+    margin-bottom: 10px;
+}
+
+.card button {
+    width: 100%;
+    padding: 8px;
+    margin-bottom: 8px;
+    border: none;
+    border-radius: 4px;
+    background: #007bff;
+    color: white;
+    cursor: pointer;
+}
+
+.card button:hover {
+    background: #0056b3;
+}
+
+#message {
+    margin-top: 25px;
+    font-weight: bold;
+}
+
+.success { color: green; }
+.error { color: red; }
+</style>
+</head>
+
+<body>
+
+<h1>Model Permission Actions</h1>
+
+<div class="container">
+
+    <div class="card">
+        <h2>Course</h2>
+        <button data-model="course" data-action="add">Add</button>
+        <button data-model="course" data-action="view">View</button>
+        <button data-model="course" data-action="change">Update</button>
+        <button data-model="course" data-action="delete">Delete</button>
+    </div>
+
+    <div class="card">
+        <h2>Subject</h2>
+        <button data-model="subject" data-action="add">Add</button>
+        <button data-model="subject" data-action="view">View</button>
+        <button data-model="subject" data-action="change">Update</button>
+        <button data-model="subject" data-action="delete">Delete</button>
+    </div>
+
+    <div class="card">
+        <h2>Book</h2>
+        <button data-model="book" data-action="add">Add</button>
+        <button data-model="book" data-action="view">View</button>
+        <button data-model="book" data-action="change">Update</button>
+        <button data-model="book" data-action="delete">Delete</button>
+    </div>
+
+</div>
+
+<p id="message"></p>
+
+<script>
+const API_BASE = "http://127.0.0.1:8000/api";
+
+document.querySelectorAll("button").forEach(btn => {
+    btn.addEventListener("click", async () => {
+
+        const model = btn.dataset.model;
+        const action = btn.dataset.action;
+        const message = document.getElementById("message");
+
+        const token = localStorage.getItem("access_token");
+        const permissions = JSON.parse(localStorage.getItem("user_permissions") || "[]");
+
+        if (!token) {
+            message.textContent = "❌ User not logged in";
+            message.className = "error";
+            return;
+        }
+
+        const requiredPermission = `permission.${action}_${model}`;
+
+        if (!permissions.includes(requiredPermission)) {
+            message.textContent = `❌ No permission: ${requiredPermission}`;
+            message.className = "error";
+            return;
+        }
+
+        // API config
+        let url = `${API_BASE}/${model}/`;
+        let options = {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${token}`,
+                "Content-Type": "application/json"
+            }
+        };
+
+        // Map CRUD actions
+        if (action === "add") {
+            options.method = "POST";
+            url += "create/";
+            // options.body = JSON.stringify({ name: `${model} demo` });
+        }
+
+        else if (action === "change") {
+            options.method = "PUT";
+            url += "update/";
+            // options.body = JSON.stringify({ name: `${model} updated` });
+        }
+
+        else if (action === "delete") {
+            options.method = "DELETE";
+            url += "delete/";
+        }
+
+
+        try {
+            const res = await fetch(url, options);
+
+            if (res.ok) {
+                message.textContent = `✅ ${action.toUpperCase()} ${model} success`;
+                message.className = "success";
+            } else {
+                const data = await res.json();
+                message.textContent = `❌ ${data.error || "Action failed"}`;
+                message.className = "error";
+            }
+
+        } catch (err) {
+            message.textContent = "❌ Server error";
+            message.className = "error";
+            console.error(err);
+        }
+    });
+});
+</script>
+
+</body>
+</html>

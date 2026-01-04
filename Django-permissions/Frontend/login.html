@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f6f8;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .login-box {
+            background: #ffffff;
+            width: 360px;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .login-box h2 {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .info-box {
+            background: #eef5ff;
+            border: 1px solid #cfe2ff;
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .info-box strong {
+            color: #0d6efd;
+        }
+
+        .login-box input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .login-box button {
+            width: 100%;
+            padding: 10px;
+            background-color: #007bff;
+            border: none;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        .login-box button:hover {
+            background-color: #0056b3;
+        }
+
+        .error {
+            color: red;
+            text-align: center;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+ <!-- ✅ TEST CREDENTIALS -->
+    <div class="info-box">
+        <strong>For testing purpose:</strong><br><br>
+        <strong>Super Admin Login</strong><br>
+        Username: <code> admin1</code><br>
+        Password: <code> Admin@123</code> <br>
+
+        <strong> Admin Login</strong><br>
+        Username: <code> admin2</code><br>
+        Password: <code> Admin2@123</code> <br>
+
+        <strong> Teacher Login</strong><br>
+        Username: <code> teacher1</code><br>
+        Password: <code> Teacher@123</code>
+    </div>
+
+<div class="login-box">
+    <h2>Login</h2>
+
+    <form id="loginForm">
+        <input type="text" id="username" placeholder="Username" required>
+        <input type="password" id="password" placeholder="Password" required>
+        <button type="submit">Login</button>
+    </form>
+
+    <div id="error" class="error"></div>
+</div>
+
+<script>
+    document.getElementById("loginForm").addEventListener("submit", async function (e) {
+        e.preventDefault();
+
+        const username = document.getElementById("username").value;
+        const password = document.getElementById("password").value;
+        const errorDiv = document.getElementById("error");
+
+        errorDiv.textContent = "";
+
+        try {
+            const response = await fetch("http://127.0.0.1:8000/api/login/", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    username: username,
+                    password: password
+                })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                errorDiv.textContent = data.error || "Invalid login";
+                return;
+            }
+
+            // Store tokens & user data
+            localStorage.setItem("access_token", data.access);
+            localStorage.setItem("refresh_token", data.refresh);
+            localStorage.setItem("user", JSON.stringify(data.user));
+
+            // Redirect based on role
+            const role = data.user.role;
+
+            if (role === "admin") {
+                window.location.href = "admin-dashboard.html";
+            } else if (role === "teacher" || role === "student") {
+                window.location.href = "permission.html";
+            } else {
+                errorDiv.textContent = "Role not assigned";
+            }
+
+        } catch (error) {
+            errorDiv.textContent = "Server error. Please try again.";
+            console.error(error);
+        }
+    });
+</script>
+
+</body>
+</html>
